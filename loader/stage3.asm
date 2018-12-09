@@ -6,6 +6,9 @@ mov edx, body
 call do_sysenter
 
 body:
+
+int 0x80
+
 mov edx, 0
 mov eax, 0
 mov edi, 0
