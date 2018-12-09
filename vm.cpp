@@ -160,6 +160,37 @@ void VirtualMachine::process_io_out(uint16_t port, uint8_t *value, size_t size, 
                 write_idt_entry(target, IDT_BASE + IDT_ENTRY_SIZE * (entry -> interrupt_id % 256));
             }
             break;
+        case 0x3f03: // syscall forwarding for int 0x80
+            if(size != 4) {
+                throw std::runtime_error("size must be 4");
+            } else {
+                struct __attribute__((packed)) user_regs {
+                    uint32_t eax;
+                    uint32_t ebx;
+                    uint32_t ecx;
+                    uint32_t edx;
+                    uint32_t esi;
+                    uint32_t edi;
+                    uint32_t ebp;
+                };
+
+                uint32_t ur_addr = translate_address(vcpu_fd, * (uint32_t *) value) - PHYS_OFFSET;
+                if(ur_addr + sizeof(user_regs) < ur_addr || ur_addr + sizeof(user_regs) > config.mem_size) {
+                    throw std::runtime_error("out of bounds");
+                }
+                user_regs *ur = (user_regs *) &guest_mem[ur_addr];
+
+                printf("syscall(int 0x80) %u, ebx = 0x%x, ecx = 0x%x, edx = 0x%x, esi = 0x%x, edi = 0x%x, ebp=0x%x\n",
+                    ur -> eax,
+                    ur -> ebx,
+                    ur -> ecx,
+                    ur -> edx,
+                    ur -> esi,
+                    ur -> edi,
+                    ur -> ebp
+                );
+            }
+            break;
         default:
             fprintf(stderr, "unsupported port: 0x%x\n", port);
             throw std::runtime_error("unsupported port");
