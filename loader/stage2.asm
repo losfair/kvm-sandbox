@@ -83,8 +83,23 @@ call debug_print
 sysexit
 
 handle_int_syscall:
-mov edi, int_syscall_s
-call debug_print
+push ebp
+push edi
+push esi
+push edx
+push ecx
+push ebx
+push eax
+mov dx, 0x3f03
+mov eax, esp
+out (dx), eax
+pop eax
+pop ebx
+pop ecx
+pop edx
+pop esi
+pop edi
+pop ebp
 iret
 
 handle_double_fault:
