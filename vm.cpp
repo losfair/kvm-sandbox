@@ -138,6 +138,7 @@ void VirtualMachine::process_io_out(uint16_t port, uint8_t *value, size_t size, 
                 struct __attribute__((packed)) entry_info {
                     uint32_t interrupt_id;
                     uint32_t handler_addr;
+                    uint32_t type_attr;
                 };
 
                 uint32_t phys_addr = translate_address(vcpu_fd, * (uint32_t *) value);
@@ -149,7 +150,7 @@ void VirtualMachine::process_io_out(uint16_t port, uint8_t *value, size_t size, 
                 IdtEntry target = {
                     offset: entry -> handler_addr,
                     selector: 0x08,
-                    type_attr: 0x8F,
+                    type_attr: (uint8_t) (entry -> type_attr & 0xFF),
                 };
                 printf("adding idt entry: id = 0x%x, addr = 0x%x, loc = 0x%lx\n",
                     entry -> interrupt_id % 256,
