@@ -29,4 +29,7 @@ lidt [0xc0014000]
 mov ax, 0x2b
 ltr ax
 
+mov eax, 0x30
+mov gs, eax
+
 jmp 0xc0001000

@@ -149,6 +149,11 @@ int main(int argc, const char *argv[]) {
             limit: sizeof(tss_entry),
             type: 0xE9 // TSS
         },
+        {
+            base: 0x7f000000,
+            limit: 0x00ffffff,
+            type: 0xF2, // gs?
+        },
     };
     for(size_t i = 0; i < entries.size(); i++) {
         vm.write_gdt_entry(entries[i], GDT_BASE + GDT_ENTRY_SIZE * i);
@@ -177,7 +182,7 @@ int main(int argc, const char *argv[]) {
         tss_entry tss;
         memset(&tss, 0, sizeof(tss));
         tss.ss0 = 0x10;
-        tss.esp0 = 0xc1000000;
+        tss.esp0 = KERNEL_BASE + STAGE3_OFFSET; // kernel stack is put before stage 3
         vm.write_memory((uint8_t *) &tss, sizeof(tss), TSS_BASE);
     }
 
@@ -199,13 +204,12 @@ int main(int argc, const char *argv[]) {
             memset(&te, 0, sizeof(pt_entry));
 
             size_t addr = (i * 1024 * 1024 + j * 1024) * 4;
-            if(addr >= 0xc0000000) {
-                te.address = addr - 0xc0000000;
+            if(addr >= KERNEL_BASE) {
+                te.address = addr - KERNEL_BASE;
                 te.read_or_write = 1;
                 te.present = 1;
-            }
-            if(addr >= 0x08000000 && addr < 0x20000000) {
-                te.address = addr - 0x08000000 + STAGE3_OFFSET;
+            } else if(addr >= USER_CODE_BASE) {
+                te.address = addr - USER_CODE_BASE + STAGE3_OFFSET;
                 te.read_or_write = 1;
                 te.user_or_supervisor = 1;
                 te.present = 1;

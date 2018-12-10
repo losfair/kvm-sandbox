@@ -40,7 +40,7 @@ mov ecx, 0x176 ; eip for sysenter
 wrmsr
 
 mov ecx, 0x09000000
-mov edx, 0x08000000
+mov edx, 0x08048000
 sysexit
 
 add_interrupt_with_type_attr:
@@ -116,6 +116,10 @@ call debug_print
 hlt
 
 handle_page_fault:
+mov edi, page_fault_s
+call debug_print
+mov ebx, [esp+4]
+mov ecx, [esp+8]
 hlt
 
 hello_world_s:
@@ -123,6 +127,9 @@ db "Hello, world!", 0
 
 sysenter_s:
 db "SYSENTER", 0
+
+page_fault_s:
+db "Page fault", 0
 
 int_syscall_s:
 db "system call by interrupt", 0

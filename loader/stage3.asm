@@ -1,5 +1,5 @@
 [bits 32]
-org 0x08000000
+org 0x08048000
 
 mov ecx, esp
 mov edx, body
