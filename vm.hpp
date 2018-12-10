@@ -30,6 +30,8 @@ class VirtualMachine {
         std::mutex vcpu_mutex;
         std::vector<std::unique_ptr<RemoteVCpu>> vcpus;
 
+        void check_guest_mem_bounds(uint32_t offset, uint32_t len);
+
     public:
         VirtualMachine(VMConfig config);
         virtual ~VirtualMachine();

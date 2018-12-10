@@ -145,13 +145,13 @@ int main(int argc, const char *argv[]) {
             type: 0xF2, // user data
         },
         {
-            base: 0xc0000000 + TSS_BASE,
+            base: KERNEL_BASE + TSS_BASE,
             limit: sizeof(tss_entry),
             type: 0xE9 // TSS
         },
         {
-            base: 0x7f000000,
-            limit: 0x00ffffff,
+            base: GS_DATA_BASE,
+            limit: 0x0000ffff,
             type: 0xF2, // gs?
         },
     };
@@ -164,7 +164,7 @@ int main(int argc, const char *argv[]) {
         uint32_t offset;
     } gdtr {
         size: (uint16_t) (entries.size() * GDT_ENTRY_SIZE - 1),
-        offset: 0xc0000000 + GDT_BASE,
+        offset: KERNEL_BASE + GDT_BASE,
     };
 
     vm.write_memory((uint8_t *) &gdtr, sizeof(gdtr), GDTR_OFFSET);
@@ -174,7 +174,7 @@ int main(int argc, const char *argv[]) {
         uint32_t offset;
     } idtr {
         size: 256 * IDT_ENTRY_SIZE - 1,
-        offset: 0xc0000000 + IDT_BASE,
+        offset: KERNEL_BASE + IDT_BASE,
     };
     vm.write_memory((uint8_t *) &idtr, sizeof(idtr), IDTR_OFFSET);
 
@@ -208,15 +208,24 @@ int main(int argc, const char *argv[]) {
                 te.address = addr - KERNEL_BASE;
                 te.read_or_write = 1;
                 te.present = 1;
+            } else if(addr >= GS_DATA_BASE) {
+                te.address = addr - GS_DATA_BASE + GS_DATA_OFFSET;
+                te.read_or_write = 1;
+                te.user_or_supervisor = 1;
+                te.present = 1;
             } else if(addr >= USER_CODE_BASE) {
                 te.address = addr - USER_CODE_BASE + STAGE3_OFFSET;
                 te.read_or_write = 1;
                 te.user_or_supervisor = 1;
                 te.present = 1;
-            }
-            if(addr == 0) {
-                te.address = 0;
+            } else if(addr >= USER_STACK_MIN) {
+                te.address = addr - USER_STACK_MIN + STAGE3_STACK_OFFSET;
                 te.read_or_write = 1;
+                te.user_or_supervisor = 1;
+                te.present = 1;
+            } else if(addr == 0) {
+                te.address = 0;
+                te.read_or_write = 0; // read only
                 te.present = 1;
             }
             uint32_t te_encoded = te.encode();

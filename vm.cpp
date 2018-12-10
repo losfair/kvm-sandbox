@@ -13,6 +13,8 @@
 #include <sys/mman.h>
 #include <string.h>
 
+#define DEBUG_PRINT
+
 static uint64_t translate_address(int vcpu_fd, uint64_t vaddr) {
     kvm_translation trans;
     trans.linear_address = vaddr;
@@ -64,32 +66,26 @@ VirtualMachine::VirtualMachine(VMConfig new_config) {
 
 void VirtualMachine::write_memory(const uint8_t *data, size_t len, size_t offset) {
     offset -= PHYS_OFFSET;
-
-    if(offset + len < offset || offset + len > config.mem_size) {
-        throw std::runtime_error("out of bounds");
-    }
-
+    check_guest_mem_bounds(offset, len);
     memcpy(guest_mem + offset, data, len);
 }
 
 void VirtualMachine::write_gdt_entry(const GdtEntry& entry, size_t offset) {
     offset -= PHYS_OFFSET;
-
-    if(offset + GDT_ENTRY_SIZE < offset || offset + GDT_ENTRY_SIZE > config.mem_size) {
-        throw std::runtime_error("out of bounds");
-    }
-
+    check_guest_mem_bounds(offset, GDT_ENTRY_SIZE);
     entry.encode(guest_mem + offset);
 }
 
 void VirtualMachine::write_idt_entry(const IdtEntry& entry, size_t offset) {
     offset -= PHYS_OFFSET;
-
-    if(offset + IDT_ENTRY_SIZE < offset || offset + IDT_ENTRY_SIZE > config.mem_size) {
-        throw std::runtime_error("out of bounds");
-    }
-
+    check_guest_mem_bounds(offset, IDT_ENTRY_SIZE);
     entry.encode(guest_mem + offset);
+}
+
+void VirtualMachine::check_guest_mem_bounds(uint32_t offset, uint32_t len) {
+    if(offset + len < offset || offset + len > config.mem_size) {
+        throw std::runtime_error("memory access out of bounds");
+    }
 }
 
 VirtualMachine::~VirtualMachine() {
@@ -111,7 +107,9 @@ void VirtualMachine::process_io_in(uint16_t port, uint8_t *value, size_t size, i
 
 void VirtualMachine::process_io_out(uint16_t port, uint8_t *value, size_t size, int vcpu_fd) {
     switch(port) {
+        
         case 0x3f01: // debug print
+#ifdef DEBUG_PRINT
             if(size != 4) {
                 throw std::runtime_error("size must be 4");
             } else {
@@ -130,7 +128,9 @@ void VirtualMachine::process_io_out(uint16_t port, uint8_t *value, size_t size, 
                     printf("%.*s\n", (int) (offset - start_offset + 1), &guest_mem[start_offset]);
                 }
             }
+#endif
             break;
+
         case 0x3f02: // set idt entry
             if(size != 4) {
                 throw std::runtime_error("size must be 4");
@@ -143,20 +143,19 @@ void VirtualMachine::process_io_out(uint16_t port, uint8_t *value, size_t size, 
 
                 uint32_t phys_addr = translate_address(vcpu_fd, * (uint32_t *) value);
                 size_t start_offset = phys_addr - PHYS_OFFSET;
-                if(start_offset + sizeof(entry_info) < start_offset || start_offset + sizeof(entry_info) > config.mem_size) {
-                    throw std::runtime_error("out of bounds");
-                }
+                check_guest_mem_bounds(start_offset, sizeof(entry_info));
+
                 entry_info *entry = (entry_info *) &guest_mem[start_offset];
                 IdtEntry target = {
                     offset: entry -> handler_addr,
                     selector: 0x08,
                     type_attr: (uint8_t) (entry -> type_attr & 0xFF),
                 };
-                printf("adding idt entry: id = 0x%x, addr = 0x%x, loc = 0x%lx\n",
+                /*printf("adding idt entry: id = 0x%x, addr = 0x%x, loc = 0x%lx\n",
                     entry -> interrupt_id % 256,
                     entry -> handler_addr,
                     IDT_BASE + IDT_ENTRY_SIZE * (entry -> interrupt_id % 256)
-                );
+                );*/
                 write_idt_entry(target, IDT_BASE + IDT_ENTRY_SIZE * (entry -> interrupt_id % 256));
             }
             break;
@@ -175,20 +174,45 @@ void VirtualMachine::process_io_out(uint16_t port, uint8_t *value, size_t size, 
                 };
 
                 uint32_t ur_addr = translate_address(vcpu_fd, * (uint32_t *) value) - PHYS_OFFSET;
-                if(ur_addr + sizeof(user_regs) < ur_addr || ur_addr + sizeof(user_regs) > config.mem_size) {
-                    throw std::runtime_error("out of bounds");
-                }
+                check_guest_mem_bounds(ur_addr, sizeof(user_regs));
+
                 user_regs *ur = (user_regs *) &guest_mem[ur_addr];
 
-                printf("syscall(int 0x80) %u, ebx = 0x%x, ecx = 0x%x, edx = 0x%x, esi = 0x%x, edi = 0x%x, ebp=0x%x\n",
-                    ur -> eax,
-                    ur -> ebx,
-                    ur -> ecx,
-                    ur -> edx,
-                    ur -> esi,
-                    ur -> edi,
-                    ur -> ebp
-                );
+                uint32_t ret = 0;
+
+                switch(ur -> eax) {
+                    case 0x04: { // write
+                        uint32_t data_addr = translate_address(vcpu_fd, ur -> ecx) - PHYS_OFFSET;
+                        uint32_t data_len = ur -> edx;
+                        check_guest_mem_bounds(data_addr, data_len);
+                        ret = write(ur -> ebx, &guest_mem[data_addr], data_len);
+                        break;
+                    }
+                    case 0x0d: { // time
+                        if(ur -> ebx) {
+                            uint32_t tloc_addr = translate_address(vcpu_fd, ur -> ebx) - PHYS_OFFSET;
+                            check_guest_mem_bounds(tloc_addr, sizeof(time_t));
+                            ret = time((time_t *) &guest_mem[tloc_addr]);
+                        } else {
+                            ret = time(NULL);
+                        }
+                        
+                        break;
+                    }
+                    default:
+                        fprintf(stderr, "UNSUPPORTED: syscall(int 0x80) 0x%x, ebx = 0x%x, ecx = 0x%x, edx = 0x%x, esi = 0x%x, edi = 0x%x, ebp=0x%x\n",
+                            ur -> eax,
+                            ur -> ebx,
+                            ur -> ecx,
+                            ur -> edx,
+                            ur -> esi,
+                            ur -> edi,
+                            ur -> ebp
+                        );
+                        throw std::runtime_error("unsupported system call");
+                }
+
+                *(uint32_t *)value = ret;
             }
             break;
         default:
@@ -241,7 +265,7 @@ RemoteVCpu::RemoteVCpu(VirtualMachine& vm, int id) {
                     printf("halt\n");
                     break;
                 case KVM_EXIT_IO:
-                    printf("io direction=%d size=%d port=0x%x count=0x%x\n", run->io.direction, run->io.size, run->io.port, run->io.count);
+                    //printf("io direction=%d size=%d port=0x%x count=0x%x\n", run->io.direction, run->io.size, run->io.port, run->io.count);
                     if(run->io.direction == KVM_EXIT_IO_OUT) {
                         vm.process_io_out(
                             run->io.port,

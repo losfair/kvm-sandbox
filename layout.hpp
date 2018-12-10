@@ -13,7 +13,8 @@ Memory layout:
 0x15000 - 0x16000: Page directory
 0x100000 - 0x500000: Page tables
 0x500000 - 0x1000000: Loader stack
-0x1000000 - ?: Stage 3 loader
+0x1000000 - 0x5000000: Stage 3 loader
+0x5000000 - 0xa000000: Stage 3 stack
 */
 
 #define STAGE1_OFFSET 0x0
@@ -26,6 +27,10 @@ Memory layout:
 #define PAGE_DIRECTORY_BASE 0x15000
 #define PAGE_TABLE_BASE 0x100000
 #define STAGE3_OFFSET 0x1000000
+#define STAGE3_STACK_OFFSET 0x5000000
+#define GS_DATA_OFFSET 0xa000000
 
 #define KERNEL_BASE 0xc0000000
+#define GS_DATA_BASE 0x80000000
 #define USER_CODE_BASE 0x08048000
+#define USER_STACK_MIN 0x07000000
