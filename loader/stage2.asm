@@ -111,8 +111,12 @@ call debug_print
 hlt
 
 handle_gpf:
+push eax
 mov edi, gpf_s
 call debug_print
+pop eax
+mov ebx, [esp+4]
+mov ecx, [esp+8]
 hlt
 
 handle_page_fault:
