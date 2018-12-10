@@ -39,8 +39,8 @@ mov eax, handle_sysenter
 mov ecx, 0x176 ; eip for sysenter
 wrmsr
 
-mov ecx, 0x09000000
-mov edx, 0x08048000
+mov ecx, 0x08048000 ; user esp
+mov edx, 0x08048000 ; user eip
 sysexit
 
 add_interrupt_with_type_attr:
@@ -93,7 +93,7 @@ push eax
 mov dx, 0x3f03
 mov eax, esp
 out (dx), eax
-pop eax
+pop ebx ; eax is the return value and should not be overwritten
 pop ebx
 pop ecx
 pop edx
@@ -123,7 +123,7 @@ mov ecx, [esp+8]
 hlt
 
 hello_world_s:
-db "Hello, world!", 0
+db "Stage 2 loader started", 0
 
 sysenter_s:
 db "SYSENTER", 0
