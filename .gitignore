@@ -1,5 +1,8 @@
 /loader/stage1
 /loader/stage2
 /loader/stage3
+/loader/x_stage4
 /kvm_start
 /sample*
+*.d
+*.elf
