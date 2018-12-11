@@ -24,25 +24,4 @@ wrmsr                        ; Write to the model-specific register.
 
 jmp 0x100000
 
-; unreachable from here
-
-; initialize paging
-mov eax, 0x15000
-mov cr3, eax
-
-mov eax, cr0
-or eax, 0x80000000
-mov cr0, eax
-
-lgdt [0xc0003000]
-lidt [0xc0014000]
-
-mov ax, 0x2b
-ltr ax
-
-mov eax, 0x30
-mov gs, eax
-
-jmp 0xc0001000
-
 times 512-($-$$) db 0

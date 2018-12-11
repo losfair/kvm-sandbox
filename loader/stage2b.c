@@ -1,14 +1,6 @@
 #include <stdint.h>
-#include "../layout.hpp"
-
-volatile uint64_t *pml4t = (uint64_t *) (FIXED_DATA_OFFSET + 0); // 512 entries
-volatile uint64_t *kernel_pdpt = (uint64_t *) (FIXED_DATA_OFFSET + 0x1000);
-volatile uint64_t *kernel_pdt = (uint64_t *) (FIXED_DATA_OFFSET + 0x2000);
-volatile uint64_t *kernel_pt = (uint64_t *) (FIXED_DATA_OFFSET + 0x3000);
-
-void do_halt() {
-    asm volatile("hlt" : : : "memory");
-}
+#include "offsets.h"
+#include "gdt.h"
 
 void __attribute__((section(".loader_start"))) _loader_start() {
     uintptr_t i, j;
@@ -29,6 +21,16 @@ void __attribute__((section(".loader_start"))) _loader_start() {
         }
     }
 
+    struct __attribute__((packed)) {
+        uint16_t size;
+        uint32_t offset;
+    } gdtr;
+
+    gdtr.size = GDT_ENTRY_COUNT * sizeof(uint64_t) - 1;
+    gdtr.offset = (uint32_t) (uintptr_t) gdt;
+
+    gdt_setup_64();
+
     asm volatile(
         "mov %0, %%eax\n"
         "mov %%eax, %%cr3\n"
@@ -43,14 +45,13 @@ void __attribute__((section(".loader_start"))) _loader_start() {
     );
 
     asm volatile(
-        "mov $0xC0000080, %%ecx\n"
-        "rdmsr\n"
-        "or $0x100, %%eax\n"
-        "wrmsr\n"
+        "push %0\n"
         "mov %%cr0, %%eax\n"
         "or $0x80000000, %%eax\n"
         "mov %%eax, %%cr0\n"
-        : : : "memory"
+        "pop %%eax\n"
+        "lgdt (%%eax)\n"
+        "jmp $0x08, $0x00100100\n"
+        : : "r" (&gdtr) : "memory"
     );
-    do_halt();
 }
