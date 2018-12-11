@@ -130,62 +130,31 @@ void VirtualMachine::process_io_out(uint16_t port, uint8_t *value, size_t size, 
             }
 #endif
             break;
-        case 0x3f03: // syscall forwarding for int 0x80
-            if(size != 4) {
-                throw std::runtime_error("size must be 4");
-            } else {
-                struct __attribute__((packed)) user_regs {
-                    uint32_t eax;
-                    uint32_t ebx;
-                    uint32_t ecx;
-                    uint32_t edx;
-                    uint32_t esi;
-                    uint32_t edi;
-                    uint32_t ebp;
-                };
+        case 0x3f03: { // syscall forwarding
+            kvm_regs regs;
+            chk_result(ioctl(vcpu_fd, KVM_GET_REGS, &regs));
+            uint64_t rdx_offset = translate_address(vcpu_fd, regs.rsp) - PHYS_OFFSET;
+            check_guest_mem_bounds(rdx_offset, sizeof(uint64_t));
+            regs.rdx = * (uint64_t *) &guest_mem[rdx_offset];
 
-                uint32_t ur_addr = translate_address(vcpu_fd, * (uint32_t *) value) - PHYS_OFFSET;
-                check_guest_mem_bounds(ur_addr, sizeof(user_regs));
+            /*printf("[+] SYSCALL\n");
+            printf("rip = 0x%llx, rax = 0x%llx, rbx = 0x%llx, rcx = 0x%llx\n", regs.rip, regs.rax, regs.rbx, regs.rcx);
+            printf("rdx = 0x%llx, rdi = 0x%llx, rsi = 0x%llx\n", regs.rdx, regs.rdi, regs.rsi);
+            printf("rsp = 0x%llx\n", regs.rsp);*/
 
-                user_regs *ur = (user_regs *) &guest_mem[ur_addr];
-
-                uint32_t ret = 0;
-
-                switch(ur -> eax) {
-                    case 0x04: { // write
-                        uint32_t data_addr = translate_address(vcpu_fd, ur -> ecx) - PHYS_OFFSET;
-                        uint32_t data_len = ur -> edx;
-                        check_guest_mem_bounds(data_addr, data_len);
-                        ret = write(ur -> ebx, &guest_mem[data_addr], data_len);
-                        break;
-                    }
-                    case 0x0d: { // time
-                        if(ur -> ebx) {
-                            uint32_t tloc_addr = translate_address(vcpu_fd, ur -> ebx) - PHYS_OFFSET;
-                            check_guest_mem_bounds(tloc_addr, sizeof(time_t));
-                            ret = time((time_t *) &guest_mem[tloc_addr]);
-                        } else {
-                            ret = time(NULL);
-                        }
-                        
-                        break;
-                    }
-                    default:
-                        fprintf(stderr, "UNSUPPORTED: syscall(int 0x80) 0x%x, ebx = 0x%x, ecx = 0x%x, edx = 0x%x, esi = 0x%x, edi = 0x%x, ebp=0x%x\n",
-                            ur -> eax,
-                            ur -> ebx,
-                            ur -> ecx,
-                            ur -> edx,
-                            ur -> esi,
-                            ur -> edi,
-                            ur -> ebp
-                        );
-                        throw std::runtime_error("unsupported system call");
+            switch(regs.rax) {
+                case 0x01: { // write
+                    uint64_t payload_offset = translate_address(vcpu_fd, regs.rsi) - PHYS_OFFSET;
+                    check_guest_mem_bounds(payload_offset, regs.rdx);
+                    regs.rax = syscall(0x01, regs.rdi, &guest_mem[payload_offset], regs.rdx);
+                    break;
                 }
-
-                *(uint32_t *)value = ret;
+                default:
+                    throw std::runtime_error("unsupported syscall");
             }
+            chk_result(ioctl(vcpu_fd, KVM_SET_REGS, &regs));
             break;
+        }
         default:
             fprintf(stderr, "unsupported port: 0x%x\n", port);
             throw std::runtime_error("unsupported port");
