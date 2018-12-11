@@ -11,7 +11,8 @@ all:
 	$(CC) -T stage2c.ld -m64 -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall \
 		-mno-sse -mno-sse2 -mno-mmx -mno-80387 -mcmodel=large \
 		-fomit-frame-pointer -fno-stack-protector -nostartfiles -nostdlib -o stage2c.elf \
-		stage2c.c stage2c_helper.s
+		-DLONG_MODE_64 \
+		stage2c.c stage2c_helper.s kheap.c
 	objcopy -O binary stage2c.elf stage2c
 	cat stage2c >> stage2
 

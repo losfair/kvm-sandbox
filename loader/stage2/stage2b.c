@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include "offsets.h"
 #include "gdt.h"
+#include "page.h"
 
 void __attribute__((section(".loader_start"))) _loader_start() {
     uintptr_t i, j;
@@ -10,14 +11,14 @@ void __attribute__((section(".loader_start"))) _loader_start() {
         kernel_pdpt[i] = 0;
     }
 
-    pml4t[0] = (uint64_t) (uintptr_t) kernel_pdpt | 0x03;
-    pml4t[256] = (uint64_t) (uintptr_t) kernel_pdpt | 0x03;
-    kernel_pdpt[0] = (uint64_t) (uintptr_t) kernel_pdt | 0x03;
+    pml4t[0] = (uint64_t) (uintptr_t) kernel_pdpt | (PAGE_PRESENT | PAGE_RW);
+    pml4t[256] = (uint64_t) (uintptr_t) kernel_pdpt | (PAGE_PRESENT | PAGE_RW);
+    kernel_pdpt[0] = (uint64_t) (uintptr_t) kernel_pdt | (PAGE_PRESENT | PAGE_RW);
     for(i = 0; i < 512; i++) {
         volatile uint64_t *current_pt = &kernel_pt[i * 512];
-        kernel_pdt[i] = (uint64_t) (uintptr_t) current_pt | 0x03;
+        kernel_pdt[i] = (uint64_t) (uintptr_t) current_pt | (PAGE_PRESENT | PAGE_RW);
         for(j = 0; j < 512; j++) {
-            current_pt[j] = (i * 512 * 4096 + j * 4096) | 0x03;
+            current_pt[j] = (i * 512 * 4096 + j * 4096) | (PAGE_PRESENT | PAGE_RW);
         }
     }
 

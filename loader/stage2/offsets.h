@@ -11,3 +11,5 @@ static volatile __attribute__((used)) uint64_t *pml4t = (uint64_t *) (FIXED_DATA
 static volatile __attribute__((used)) uint64_t *kernel_pdpt = (uint64_t *) (FIXED_DATA_OFFSET + 0x13000);
 static volatile __attribute__((used)) uint64_t *kernel_pdt = (uint64_t *) (FIXED_DATA_OFFSET + 0x14000);
 static volatile __attribute__((used)) uint64_t *kernel_pt = (uint64_t *) (FIXED_DATA_OFFSET + 0x15000);
+
+#define KERNEL_HEAP ((uint8_t *) (FIXED_DATA_OFFSET + 0x100000))

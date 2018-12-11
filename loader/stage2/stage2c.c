@@ -1,16 +1,23 @@
-#define LONG_MODE_64
-
 #include <stdint.h>
 #include <string.h>
 #include "offsets.h"
 #include "idt.h"
 #include "gdt.h"
+#include "kheap.h"
+#include "page.h"
 
 void init_regs();
+void init_syscall(void (*handler)());
 void handle_div_by_zero();
 void handle_page_fault();
 void handle_double_fault();
 void handle_gpf();
+void flush_tlb();
+void enter_userspace(void *user_code, void *user_stack);
+
+void on_syscall() {
+    while(1) {}
+}
 
 void do_halt() {
     asm volatile("hlt" : : : "memory");
@@ -25,6 +32,9 @@ struct interrupt_frame {
 };
 
 void __attribute__((section(".loader_start"))) _loader_start() {
+    uint64_t i;
+
+    // reload gdtr with paged address
     struct __attribute__((packed)) {
         uint16_t size;
         uint64_t offset;
@@ -37,17 +47,16 @@ void __attribute__((section(".loader_start"))) _loader_start() {
         "lgdt (%0)" : : "r" (&gdtr) : "memory"
     );
 
+    // init ds, es, ss
     init_regs();
 
-    pml4t[0] = 0;
-    asm volatile(
-        "push %%rax\n"
-        "mov %%cr3, %%rax\n"
-        "mov %%rax, %%cr3\n"
-        "pop %%rax"
-        : : : "memory"
-    );
+    init_syscall(on_syscall);
 
+    // remove identity mapping
+    pml4t[0] = 0;
+    flush_tlb();
+
+    // setup IDT
     memset((char *) idt, 4096, 0);
 
     struct __attribute__((packed)) {
@@ -66,13 +75,26 @@ void __attribute__((section(".loader_start"))) _loader_start() {
     idt_write(&idt[0x0d], (uintptr_t) handle_gpf, 0x8F);
     idt_write(&idt[0x0e], (uintptr_t) handle_page_fault, 0x8F);
 
+    // setup tss
+
     memset((char *) tss, 0, sizeof(struct Tss));
     tss->rsp0 = FIXED_DATA_OFFSET; // stack
     asm volatile("push %%rax; mov $0x23, %%ax; ltr %%ax; pop %%rax" : : : "memory");
 
+    uint64_t *user_pdpt = (uint64_t *) kmalloc(0x1000);
+    uint64_t *user_pdt = (uint64_t *) kmalloc(0x1000);
+    for(i = 0; i < 512; i++) {
+        user_pdpt[i] = 0;
+        user_pdt[i] = (STAGE3_OFFSET - LAYOUT_BASE_OFFSET + i * 2 * 1024 * 1024) | (PAGE_PRESENT | PAGE_RW | PAGE_USER | PAGE_LARGE);
+    }
+    user_pdpt[1] = ((uint64_t) user_pdt - LAYOUT_BASE_OFFSET) | (PAGE_PRESENT | PAGE_RW | PAGE_USER); // 1GB offset
+    pml4t[0] = ((uint64_t) user_pdpt - LAYOUT_BASE_OFFSET) | (PAGE_PRESENT | PAGE_RW | PAGE_USER);
+    flush_tlb();
+
     asm volatile("sti" : : : "memory");
+    enter_userspace((void *) 0x40000000, 0);
 
     //*(uint32_t *) (0xdeadbeef) = 42;
-    //while(1) {}
+    while(1) {}
     do_halt();
 }

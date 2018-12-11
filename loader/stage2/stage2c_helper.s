@@ -6,6 +6,18 @@ mov %rax, %es
 mov %rax, %ss
 ret
 
+.globl init_syscall
+init_syscall:
+mov $0xC0000080, %ecx
+rdmsr
+or $1, %rax
+wrmsr
+
+mov $0xC0000082, %ecx
+mov %rdi, %rax
+wrmsr
+ret
+
 .globl handle_page_fault
 handle_page_fault:
 pop %rax # error code
@@ -40,3 +52,14 @@ hlt
 handle_div_by_zero:
 mov $0, %rax
 hlt
+
+.globl flush_tlb
+flush_tlb:
+mov %cr3, %rax
+mov %rax, %cr3
+ret
+
+.globl enter_userspace
+enter_userspace:
+mov %rdi, %rcx
+sysretq
