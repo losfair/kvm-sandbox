@@ -4,4 +4,8 @@ all: loader
 loader:
 	make -C loader
 
+clean:
+	rm kvm_start || true
+	make -C loader clean
+
 .PHONY: loader

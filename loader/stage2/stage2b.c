@@ -32,26 +32,30 @@ void __attribute__((section(".loader_start"))) _loader_start() {
     gdt_setup_64();
 
     asm volatile(
+        "push %1\n" // gdtr
+
+        // set pml4t
         "mov %0, %%eax\n"
         "mov %%eax, %%cr3\n"
-        : : "r"(pml4t) : "memory"
-    );
 
-    asm volatile(
+        // enable pae
         "mov %%cr4, %%eax\n"
         "or $0x20, %%eax\n" // bit 5 (PAE)
         "mov %%eax, %%cr4\n"
-        : : : "memory"
-    );
 
-    asm volatile(
-        "push %0\n"
+        // enable paging
         "mov %%cr0, %%eax\n"
         "or $0x80000000, %%eax\n"
         "mov %%eax, %%cr0\n"
+
+        // get gdtr
         "pop %%eax\n"
+
+        // load gdt
         "lgdt (%%eax)\n"
+
+        // enter 64-bit mode
         "jmp $0x08, $0x00100100\n"
-        : : "r" (&gdtr) : "memory"
+        : : "r"(pml4t), "r" (&gdtr) : "memory"
     );
 }

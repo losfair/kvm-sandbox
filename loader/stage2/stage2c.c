@@ -68,11 +68,11 @@ void __attribute__((section(".loader_start"))) _loader_start() {
 
     memset((char *) tss, 0, sizeof(struct Tss));
     tss->rsp0 = FIXED_DATA_OFFSET; // stack
-    asm volatile("mov $0x23, %%ax; ltr %%ax" : : : "memory");
+    asm volatile("push %%rax; mov $0x23, %%ax; ltr %%ax; pop %%rax" : : : "memory");
 
     asm volatile("sti" : : : "memory");
 
-    *(uint32_t *) (0xdeadbeef) = 42;
-
+    //*(uint32_t *) (0xdeadbeef) = 42;
+    //while(1) {}
     do_halt();
 }
