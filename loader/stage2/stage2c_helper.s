@@ -14,6 +14,8 @@ or $1, %rax
 wrmsr
 
 mov $0xC0000082, %ecx
+mov %rdi, %rdx
+shr $32, %rdx
 mov %rdi, %rax
 wrmsr
 ret

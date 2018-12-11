@@ -13,14 +13,23 @@ void handle_page_fault();
 void handle_double_fault();
 void handle_gpf();
 void flush_tlb();
-void enter_userspace(void *user_code, void *user_stack);
-
-void on_syscall() {
-    while(1) {}
-}
+void enter_userspace(void *user_code);
 
 void do_halt() {
     asm volatile("hlt" : : : "memory");
+}
+
+struct _unused_syscall_frame {};
+
+void __attribute__((interrupt)) on_syscall(struct _unused_syscall_frame *_frame) {
+    asm volatile(
+        "push %rdx\n"
+        "mov $0x3f03, %dx\n"
+        "out %ax, (%dx)\n"
+        "pop %rdx\n"
+    );
+    //do_halt();
+    while(1) {}
 }
 
 struct interrupt_frame {
@@ -92,7 +101,7 @@ void __attribute__((section(".loader_start"))) _loader_start() {
     flush_tlb();
 
     asm volatile("sti" : : : "memory");
-    enter_userspace((void *) 0x40000000, 0);
+    enter_userspace((void *) 0x40000000);
 
     //*(uint32_t *) (0xdeadbeef) = 42;
     while(1) {}
