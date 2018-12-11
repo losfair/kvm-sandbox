@@ -270,6 +270,8 @@ RemoteVCpu::RemoteVCpu(VirtualMachine& vm, int id) {
 
         chk_result(ioctl(vcpu_fd, KVM_GET_REGS, &regs));
         printf("rip = 0x%llx, rax = 0x%llx, rbx = 0x%llx, rcx = 0x%llx\n", regs.rip, regs.rax, regs.rbx, regs.rcx);
+        printf("rdx = 0x%llx, rdi = 0x%llx, rsi = 0x%llx\n", regs.rdx, regs.rdi, regs.rsi);
+        printf("rsp = 0x%llx\n", regs.rsp);
 
         close(vcpu_fd);
     });
