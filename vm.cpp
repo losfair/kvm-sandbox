@@ -42,12 +42,14 @@ VirtualMachine::VirtualMachine(VMConfig new_config) {
         max_vcpus = 4;
     }
 
-    guest_mem = (uint8_t *) mmap(NULL, config.mem_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    guest_mem = (uint8_t *) mmap(NULL, config.mem_size + 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if(!guest_mem) {
         close(vm_fd);
         close(kvm_device_fd);
         throw std::runtime_error("unable to initialize guest mem");
     }
+
+    mprotect(guest_mem + config.mem_size, 4096, PROT_NONE); // guard page
 
     memset(guest_mem, 0, config.mem_size);
 
