@@ -12,6 +12,7 @@
 #include <stdexcept>
 #include <sys/mman.h>
 #include <string.h>
+#include <sys/syscall.h>
 
 #define DEBUG_PRINT
 
@@ -137,20 +138,24 @@ void VirtualMachine::process_io_out(uint16_t port, uint8_t *value, size_t size, 
             check_guest_mem_bounds(rdx_offset, sizeof(uint64_t));
             regs.rdx = * (uint64_t *) &guest_mem[rdx_offset];
 
-            /*printf("[+] SYSCALL\n");
-            printf("rip = 0x%llx, rax = 0x%llx, rbx = 0x%llx, rcx = 0x%llx\n", regs.rip, regs.rax, regs.rbx, regs.rcx);
-            printf("rdx = 0x%llx, rdi = 0x%llx, rsi = 0x%llx\n", regs.rdx, regs.rdi, regs.rsi);
-            printf("rsp = 0x%llx\n", regs.rsp);*/
-
             switch(regs.rax) {
-                case 0x01: { // write
+                case SYS_write: { // write
                     uint64_t payload_offset = translate_address(vcpu_fd, regs.rsi) - PHYS_OFFSET;
                     check_guest_mem_bounds(payload_offset, regs.rdx);
                     regs.rax = syscall(0x01, regs.rdi, &guest_mem[payload_offset], regs.rdx);
                     break;
                 }
-                default:
+                case SYS_exit_group: { // exit_group
+                    regs.rax = syscall(0xe7, regs.rdi);
+                    break;
+                }
+                default: {
+                    printf("[-] UNSUPPORTED SYSCALL\n");
+                    printf("rip = 0x%llx, rax = 0x%llx, rbx = 0x%llx, rcx = 0x%llx\n", regs.rip, regs.rax, regs.rbx, regs.rcx);
+                    printf("rdx = 0x%llx, rdi = 0x%llx, rsi = 0x%llx\n", regs.rdx, regs.rdi, regs.rsi);
+                    printf("rsp = 0x%llx\n", regs.rsp);
                     throw std::runtime_error("unsupported syscall");
+                }
             }
             chk_result(ioctl(vcpu_fd, KVM_SET_REGS, &regs));
             break;
