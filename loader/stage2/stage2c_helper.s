@@ -8,6 +8,16 @@ ret
 
 .globl init_syscall
 init_syscall:
+# IA32_KERNEL_GS_BASE
+mov $0xC0000102, %ecx
+mov $0xffff8000, %edx
+mov $0x00001000, %eax
+wrmsr
+
+mov $0xffff800002000000, %rax
+mov $0xffff800000001000, %rcx
+mov %rax, (%rcx)
+
 mov $0xC0000080, %ecx
 rdmsr
 or $1, %rax

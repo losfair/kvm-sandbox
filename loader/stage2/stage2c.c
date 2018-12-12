@@ -23,13 +23,17 @@ struct _unused_syscall_frame {};
 
 void __attribute__((interrupt)) on_syscall(struct _unused_syscall_frame *_frame) {
     asm volatile(
+        "swapgs\n"
+        "mov %rsp, %gs:0x8\n"
+        "mov %gs:0x0, %rsp\n"
         "push %rdx\n"
         "mov $0x3f03, %dx\n"
         "out %ax, (%dx)\n"
         "pop %rdx\n"
+        "mov %gs:0x8, %rsp\n"
+        "swapgs\n"
+        "sysretq"
     );
-    //do_halt();
-    while(1) {}
 }
 
 struct interrupt_frame {

@@ -9,7 +9,9 @@
 /*
 Memory layout:
 
-0x0 - 0x3000: Stage 1 loader
+0x0 - 0x1000: Stage 1 loader
+0x1000 - 0x1008: Address of kernel syscall stack
+0x1008 - 0x1010: Saved address of user stack before entering syscall
 0x3000 - 0x3010: GDTR
 0x3010 - 0x14000: GDT
 0x100000 - 0x2000000: Stage 2 loader
