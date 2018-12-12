@@ -13,7 +13,7 @@ void handle_page_fault();
 void handle_double_fault();
 void handle_gpf();
 void flush_tlb();
-void enter_userspace(void *user_code);
+void enter_userspace(void *user_code, void *user_stack);
 
 void do_halt() {
     asm volatile("hlt" : : : "memory");
@@ -101,7 +101,7 @@ void __attribute__((section(".loader_start"))) _loader_start() {
     flush_tlb();
 
     asm volatile("sti" : : : "memory");
-    enter_userspace((void *) 0x40000000);
+    enter_userspace((void *) 0x40000000, (void *) 0x42000000);
 
     //*(uint32_t *) (0xdeadbeef) = 42;
     while(1) {}

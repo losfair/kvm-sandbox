@@ -64,4 +64,5 @@ ret
 .globl enter_userspace
 enter_userspace:
 mov %rdi, %rcx
+mov %rsi, %rsp
 sysretq
