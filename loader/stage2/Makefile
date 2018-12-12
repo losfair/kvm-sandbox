@@ -12,7 +12,7 @@ all:
 		-mno-sse -mno-sse2 -mno-mmx -mno-80387 -mcmodel=large \
 		-fomit-frame-pointer -fno-stack-protector -nostartfiles -nostdlib -o stage2c.elf \
 		-DLONG_MODE_64 \
-		stage2c.c stage2c_helper.s kheap.c
+		stage2c.c stage2c_helper.s page.c proc.c
 	objcopy -O binary stage2c.elf stage2c
 	cat stage2c >> stage2
 

@@ -3,8 +3,8 @@
 #include "offsets.h"
 #include "idt.h"
 #include "gdt.h"
-#include "kheap.h"
 #include "page.h"
+#include "proc.h"
 
 void init_regs();
 void init_syscall(void (*handler)());
@@ -41,7 +41,7 @@ struct interrupt_frame {
 };
 
 void __attribute__((section(".loader_start"))) _loader_start() {
-    uint64_t i;
+    uint64_t i, j;
 
     // reload gdtr with paged address
     struct __attribute__((packed)) {
@@ -58,8 +58,8 @@ void __attribute__((section(".loader_start"))) _loader_start() {
 
     // init ds, es, ss
     init_regs();
-
     init_syscall(on_syscall);
+    init_phys_page_map((void *) USER_OFFSET);
 
     // remove identity mapping
     pml4t[0] = 0;
@@ -90,18 +90,28 @@ void __attribute__((section(".loader_start"))) _loader_start() {
     tss->rsp0 = FIXED_DATA_OFFSET; // stack
     asm volatile("push %%rax; mov $0x23, %%ax; ltr %%ax; pop %%rax" : : : "memory");
 
-    uint64_t *user_pdpt = (uint64_t *) kmalloc(0x1000);
-    uint64_t *user_pdt = (uint64_t *) kmalloc(0x1000);
-    for(i = 0; i < 512; i++) {
-        user_pdpt[i] = 0;
-        user_pdt[i] = (STAGE3_OFFSET - LAYOUT_BASE_OFFSET + i * 2 * 1024 * 1024) | (PAGE_PRESENT | PAGE_RW | PAGE_USER | PAGE_LARGE);
+    struct Proc *proc;
+    if(proc_new(&proc)) {
+        do_halt();
     }
-    user_pdpt[1] = ((uint64_t) user_pdt - LAYOUT_BASE_OFFSET) | (PAGE_PRESENT | PAGE_RW | PAGE_USER); // 1GB offset
-    pml4t[0] = ((uint64_t) user_pdpt - LAYOUT_BASE_OFFSET) | (PAGE_PRESENT | PAGE_RW | PAGE_USER);
-    flush_tlb();
+    for(i = 0; i < 2048; i++) {// 8MB
+        uint64_t addr;
+        if(phys_alloc(&addr)) do_halt();
+        if(proc_map_vm(proc, (void *) (0x40000000ull + i * 4096), addr)) do_halt();
+
+        uint8_t *pg_mem;
+        if(proc_get_vm_map(proc, (void **) &pg_mem, (void *) (0x40000000ull + i * 4096))) {
+            do_halt();
+        }
+
+        for(j = 0; j < 4096; j++) {
+            pg_mem[j] = * (uint8_t *) (STAGE3_OFFSET + i * 4096 + j);
+        }
+    }
+    proc_load_table(proc);
 
     asm volatile("sti" : : : "memory");
-    enter_userspace((void *) 0x40000000, (void *) 0x42000000);
+    enter_userspace((void *) 0x40000000, (void *) 0x40800000);
 
     //*(uint32_t *) (0xdeadbeef) = 42;
     while(1) {}
