@@ -29,10 +29,17 @@ for i in range(len(code)):
             if arg[0] == '@':
                 out += "uint64_t translated_{} = translate_address(vcpu_fd, regs.{});\n".format(j, REG_NAMES[j])
                 [len_idx, unit_len] = list(map(lambda x: x.strip(), arg[1:].split("#")))
-                out += "check_guest_mem_bounds(translated_{}, regs.{} * {});\n".format(
+
+                unit_len = int(unit_len)
+                if len_idx == "_":
+                    mem_bound = "1"
+                else:
+                    mem_bound = "regs." + REG_NAMES[int(len_idx)]
+
+                out += "check_guest_mem_bounds(translated_{}, {} * {});\n".format(
                     j,
-                    REG_NAMES[int(len_idx)],
-                    int(unit_len),
+                    mem_bound,
+                    unit_len,
                 )
 
         out += "regs.rax = syscall({},".format(name)

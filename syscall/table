@@ -1,2 +1,3 @@
 SYS_write(_, @2 # 1, _)
+SYS_open(@_#0, _, _)
 SYS_exit_group(_)
