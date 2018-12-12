@@ -1,0 +1,2 @@
+SYS_write(_, @2 # 1, _)
+SYS_exit_group(_)

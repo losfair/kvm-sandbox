@@ -139,16 +139,7 @@ void VirtualMachine::process_io_out(uint16_t port, uint8_t *value, size_t size, 
             regs.rdx = * (uint64_t *) &guest_mem[rdx_offset];
 
             switch(regs.rax) {
-                case SYS_write: { // write
-                    uint64_t payload_offset = translate_address(vcpu_fd, regs.rsi) - PHYS_OFFSET;
-                    check_guest_mem_bounds(payload_offset, regs.rdx);
-                    regs.rax = syscall(0x01, regs.rdi, &guest_mem[payload_offset], regs.rdx);
-                    break;
-                }
-                case SYS_exit_group: { // exit_group
-                    regs.rax = syscall(0xe7, regs.rdi);
-                    break;
-                }
+                #include "syscall_table.generated.hpp"
                 default: {
                     printf("[-] UNSUPPORTED SYSCALL\n");
                     printf("rip = 0x%llx, rax = 0x%llx, rbx = 0x%llx, rcx = 0x%llx\n", regs.rip, regs.rax, regs.rbx, regs.rcx);

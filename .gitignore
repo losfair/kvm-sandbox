@@ -3,3 +3,4 @@
 /sample*
 *.d
 *.elf
+*.generated.hpp
