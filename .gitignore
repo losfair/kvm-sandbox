@@ -4,3 +4,4 @@
 *.d
 *.elf
 *.generated.hpp
+*.image
