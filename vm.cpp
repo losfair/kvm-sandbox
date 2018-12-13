@@ -13,8 +13,25 @@
 #include <sys/mman.h>
 #include <string.h>
 #include <sys/syscall.h>
+#include <unistd.h>
 
 #define DEBUG_PRINT
+
+static kvm_cpuid2 *_build_static_virt_cpuid() {
+    int kvm_fd = chk_result(open("/dev/kvm", O_RDWR));
+
+    kvm_cpuid2 *out = (kvm_cpuid2 *) malloc(sizeof(kvm_cpuid2) + sizeof(kvm_cpuid_entry2) * 256);
+    out->nent = 256;
+
+    int ret = ioctl(kvm_fd, KVM_GET_SUPPORTED_CPUID, out);
+    if(ret == -ENOMEM) ret = ioctl(kvm_fd, KVM_GET_SUPPORTED_CPUID, out); // 'nent' is adjusted to fit
+    chk_result(ret);
+
+    close(kvm_fd);
+    return out;
+}
+
+static kvm_cpuid2 *virt_cpuid = _build_static_virt_cpuid();;
 
 static uint64_t translate_address(int vcpu_fd, uint64_t vaddr) {
     kvm_translation trans;
@@ -180,6 +197,8 @@ RemoteVCpu::RemoteVCpu(VirtualMachine& vm, int id) {
         if(!run) {
             throw std::runtime_error("unable to map vcpu");
         }
+
+        chk_result(ioctl(vcpu_fd, KVM_SET_CPUID2, virt_cpuid));
 
         kvm_sregs sregs;
         chk_result(ioctl(vcpu_fd, KVM_GET_SREGS, &sregs));
