@@ -25,7 +25,7 @@ class ProcMapEntry:
         return ret
 
 gdb.execute("catch syscall arch_prctl")
-gdb.execute("break main")
+gdb.execute("break *main")
 
 gdb.execute("r")
 gdb.execute("c")
