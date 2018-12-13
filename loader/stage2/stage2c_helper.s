@@ -30,6 +30,34 @@ mov %rdi, %rax
 wrmsr
 ret
 
+.globl init_sse
+init_sse:
+mov %cr0, %rax
+and $0xfffb, %ax
+or $0x2, %ax
+mov %rax, %cr0
+mov %cr4, %rax
+or $0x40600, %rax
+mov %rax, %cr4
+ret
+
+.globl init_avx
+init_avx:
+xor %rcx, %rcx
+xgetbv
+or $7, %eax
+xsetbv
+ret
+
+.globl set_fs
+set_fs:
+mov $0xc0000100, %ecx # MSR_FS_BASE
+mov %rdi, %rdx
+shr $32, %rdx
+mov %rdi, %rax
+wrmsr
+ret
+
 .globl handle_page_fault
 handle_page_fault:
 pop %rax # error code

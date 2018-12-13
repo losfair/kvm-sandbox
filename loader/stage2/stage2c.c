@@ -8,6 +8,9 @@
 
 void init_regs();
 void init_syscall(void (*handler)());
+void init_sse();
+void init_avx();
+void set_fs(unsigned long fs);
 void handle_div_by_zero();
 void handle_page_fault();
 void handle_double_fault();
@@ -45,7 +48,7 @@ struct interrupt_frame {
 };
 
 void __attribute__((section(".loader_start"))) _loader_start() {
-    uint64_t i, j;
+    uint64_t i, j, k;
 
     // reload gdtr with paged address
     struct __attribute__((packed)) {
@@ -63,6 +66,8 @@ void __attribute__((section(".loader_start"))) _loader_start() {
     // init ds, es, ss
     init_regs();
     init_syscall(on_syscall);
+    init_sse();
+    init_avx();
     init_phys_page_map((void *) USER_OFFSET);
 
     // remove identity mapping
@@ -98,24 +103,39 @@ void __attribute__((section(".loader_start"))) _loader_start() {
     if(proc_new(&proc)) {
         do_halt();
     }
-    for(i = 0; i < 2048; i++) {// 8MB
-        uint64_t addr;
-        if(phys_alloc(&addr)) do_halt();
-        if(proc_map_vm(proc, (void *) (0x40000000ull + i * 4096), addr)) do_halt();
 
-        uint8_t *pg_mem;
-        if(proc_get_vm_map(proc, (void **) &pg_mem, (void *) (0x40000000ull + i * 4096))) {
-            do_halt();
-        }
-
-        for(j = 0; j < 4096; j++) {
-            pg_mem[j] = * (uint8_t *) (STAGE3_OFFSET + i * 4096 + j);
+    uint8_t *app_image = (uint8_t *) STAGE3_OFFSET;
+    uint64_t app_rip = * (uint64_t *) app_image;
+    app_image += 8;
+    uint64_t app_rsp = * (uint64_t *) app_image;
+    app_image += 8;
+    uint64_t app_fs = * (uint64_t *) app_image;
+    app_image += 8;
+    uint32_t app_num_entries = * (uint32_t *) app_image;
+    app_image += 4;
+    for(i = 0; i < app_num_entries; i++) {
+        uint64_t addr_begin = * (uint64_t *) app_image;
+        app_image += 8;
+        uint32_t num_pages = * (uint32_t *) app_image;
+        app_image += 4;
+        for(j = 0; j < num_pages; j++) {
+            uint64_t phys_addr;
+            if(phys_alloc(&phys_addr)) do_halt();
+            if(proc_map_vm(proc, (void *) (addr_begin + j * 4096), phys_addr)) do_halt();
+            uint8_t *pg_mem;
+            if(proc_get_vm_map(proc, (void **) &pg_mem, (void *) (addr_begin + j * 4096))) do_halt();
+            for(k = 0; k < 4096; k++) {
+                pg_mem[k] = app_image[k];
+            }
+            app_image += 4096;
         }
     }
     proc_load_table(proc);
 
     asm volatile("sti" : : : "memory");
-    enter_userspace((void *) 0x40000000, (void *) 0x40800000);
+
+    set_fs(app_fs);
+    enter_userspace((void *) app_rip, (void *) app_rsp);
 
     //*(uint32_t *) (0xdeadbeef) = 42;
     while(1) {}
